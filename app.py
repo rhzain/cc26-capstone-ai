@@ -44,7 +44,7 @@ class CustomDenseLayer(tf.keras.layers.Layer):
         return config
 
 
-app = FastAPI(title="Risk Profile Model API")
+app = FastAPI(title="Financial Profile Segmentation API")
 model = tf.keras.models.load_model(
     "risk_profile_model.keras",
     custom_objects={"CustomDenseLayer": CustomDenseLayer},
@@ -52,40 +52,48 @@ model = tf.keras.models.load_model(
 
 FEATURE_MEAN = np.array(
     [
-        0.4517512115616774,
-        0.5359481639989531,
-        0.2747191795214599,
-        0.4751019024748894,
-        679.5367264586861,
-        0.48475,
-        35.937,
-        10.479874342843136,
-        41.04625,
-        14.70975,
+        0.45176972948820804,
+        0.537540627742612,
+        0.27542985046291546,
+        0.4752774800398317,
+        0.47525,
+        36.045,
+        10.497223271588163,
+        41.066,
+        14.65175,
     ],
     dtype=np.float32,
 )
 FEATURE_SCALE = np.array(
     [
-        0.27280096375993285,
-        0.25361946801694374,
-        0.19722968395700197,
-        0.24699884640255088,
-        59.07589130646918,
-        0.6886707758428381,
-        17.22416996548745,
-        4.332927775472363,
-        13.353599175409602,
-        8.686253791911698,
+        0.272940065593388,
+        0.25597174717959814,
+        0.19608984099916432,
+        0.24849414368629782,
+        0.6843883674493568,
+        17.144619418348118,
+        4.3510019074635045,
+        13.50128305014009,
+        8.72848623402136,
     ],
     dtype=np.float32,
 )
 
+PROFILE_NAMES = {
+    0: "Financially Stable",
+    1: "Moderate Financial Capacity",
+    2: "Financially Vulnerable",
+}
 
-class RiskProfileInput(BaseModel):
+PROFILE_NOTE = (
+    "Cluster merupakan hasil segmentasi tanpa label (unsupervised learning) "
+    "dan tidak merepresentasikan risiko gagal bayar aktual maupun keputusan kredit resmi."
+)
+
+
+class FinancialProfileInput(BaseModel):
     age: float
     annual_income: float = Field(gt=0)
-    credit_score: float
     loan_amount: float
     loan_duration_months: float
     interest_rate: float
@@ -98,7 +106,7 @@ class RiskProfileInput(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "Risk Profile Model API is running"}
+    return {"message": "Financial Profile Segmentation API is running"}
 
 
 @app.get("/health")
@@ -107,7 +115,7 @@ def health():
 
 
 @app.post("/predict")
-def predict(payload: RiskProfileInput):
+def predict(payload: FinancialProfileInput):
     loan_to_income_ratio = payload.loan_amount / payload.annual_income
     expenses_to_income_ratio = payload.monthly_expenses / (payload.annual_income / 12)
     savings_to_income_ratio = payload.savings_balance / payload.annual_income
@@ -119,7 +127,6 @@ def predict(payload: RiskProfileInput):
                 expenses_to_income_ratio,
                 savings_to_income_ratio,
                 payload.debt_to_income_ratio,
-                payload.credit_score,
                 payload.previous_default_count,
                 payload.loan_duration_months,
                 payload.interest_rate,
@@ -132,12 +139,17 @@ def predict(payload: RiskProfileInput):
     features = (features - FEATURE_MEAN) / FEATURE_SCALE
 
     prediction = model.predict(features, verbose=0)
-    probabilities = prediction[0].tolist()
+    segment_membership_scores = prediction[0].tolist()
     predicted_label = int(np.argmax(prediction, axis=1)[0])
 
     return {
-        "risk_profile_label": predicted_label,
-        "probabilities": probabilities,
+        "financial_profile_label": predicted_label,
+        "profile_name": PROFILE_NAMES.get(
+            predicted_label,
+            f"Financial Profile {predicted_label}",
+        ),
+        "segment_membership_scores": segment_membership_scores,
+        "note": PROFILE_NOTE,
     }
 
 
