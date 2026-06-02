@@ -8,22 +8,113 @@ The system does not use `credit_score`. It does not create a default, imputed, o
 
 The output is a financial profile segment based on similarity between user financial characteristics. It is not a probability of default, credit score, loan eligibility result, approval prediction, or official credit decision.
 
+## Running Locally
+
+Use these steps to run the API locally for development or testing.
+
+### 1. Go to the AI project directory
+
+```powershell
+cd "D:\Gaskeun\AI\Dicoding\Coding Camp 2026\Capstone\ai"
+```
+
+### 2. Create and activate a virtual environment
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks script activation, run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4. Make sure the model file exists
+
+The API loads this file at startup:
+
+```text
+risk_profile_model.keras
+```
+
+Keep it in the same directory as `app.py`.
+
+### 5. Start the API server
+
+```powershell
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+You can also run:
+
+```powershell
+python app.py
+```
+
+### 6. Open the API
+
+```text
+Health check: http://localhost:8000/health
+API docs:     http://localhost:8000/docs
+```
+
+### 7. Test prediction from PowerShell
+
+```powershell
+$body = @{
+    age = 32
+    annual_income = 120000000
+    loan_amount = 35000000
+    loan_duration_months = 24
+    interest_rate = 8.5
+    debt_to_income_ratio = 0.30
+    monthly_expenses = 4500000
+    savings_balance = 25000000
+    employment_stability_years = 6
+    previous_default_count = 0
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/predict" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+```
+
 ## API Input
 
 The `/predict` endpoint accepts these user-facing inputs:
 
+| API Field | User Question | Expected Answer |
+| --- | --- | --- |
+| `age` | Berapa usia kamu saat ini? | Number of years, for example `32`. |
+| `annual_income` | Berapa total pendapatan kamu dalam 1 tahun? | Numeric money amount, for example `120000000`. Use the same currency across all money fields. |
+| `loan_amount` | Berapa jumlah pinjaman yang ingin kamu ajukan atau analisis? | Numeric money amount, for example `35000000`. |
+| `loan_duration_months` | Berapa lama durasi pinjaman? | Number of months, for example `24`. |
+| `interest_rate` | Berapa bunga pinjaman per tahun? | Percentage number, for example `8.5` for 8.5%, not `0.085`. |
+| `debt_to_income_ratio` | Berapa porsi cicilan/hutang bulanan dibanding pendapatan bulanan? | Decimal ratio, for example `0.30` for 30%. Prefer calculating this from monthly debt payment. |
+| `monthly_expenses` | Berapa total pengeluaran rutin kamu per bulan? | Numeric monthly money amount, for example `4500000`. |
+| `savings_balance` | Berapa total tabungan atau dana darurat kamu saat ini? | Numeric money amount, for example `25000000`. |
+| `employment_stability_years` | Sudah berapa tahun kamu memiliki pekerjaan atau penghasilan yang stabil? | Number of years, for example `6`. |
+| `previous_default_count` | Berapa kali kamu pernah gagal bayar atau telat berat membayar pinjaman/tagihan? | Count, for example `0`, `1`, or `2`. |
+
+For a friendlier frontend form, ask the user for `monthly_debt_payment` instead of asking for `debt_to_income_ratio` directly, then calculate:
+
 ```text
-age
-annual_income
-loan_amount
-loan_duration_months
-interest_rate
-debt_to_income_ratio
-monthly_expenses
-savings_balance
-employment_stability_years
-previous_default_count
+debt_to_income_ratio = monthly_debt_payment / (annual_income / 12)
 ```
+
+The original dataset contains additional columns such as `education_years`, `work_experience_years`, `credit_score`, `investment_balance`, and other encoded scores. These are not required by the API and are not used by the deployed model.
 
 ## Feature Engineering
 
